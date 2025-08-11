@@ -1,0 +1,826 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>StaySharp — Phishing & Online Safety Trainer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- React via CDN (no build step) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    :root {
+      --bg: #f7f7fb;
+      --panel: #ffffff;
+      --text: #1b1f24;
+      --muted: #5d6b71;
+      --brand: #2b7cff;
+      --ok: #0a8f3a;
+      --warn: #b8860b;
+      --bad: #c62828;
+      --outline: #2b7cff55;
+      --radius: 14px;
+      --shadow: 0 10px 30px rgba(0,0,0,.06);
+      --focus: 0 0 0 3px var(--outline);
+      --font-size: 16px;
+      --line-height: 1.45;
+    }
+    [data-contrast="high"] {
+      --bg: #000;
+      --panel: #111;
+      --text: #fff;
+      --muted: #ddd;
+      --brand: #9fd3ff;
+      --ok: #98ffb0;
+      --warn: #ffd37a;
+      --bad: #ff9a9a;
+      --outline: #fff;
+    }
+    [data-bigtext="true"] { --font-size: 19px; }
+
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: var(--font-size);
+      line-height: var(--line-height);
+    }
+    .app { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+    header.topbar { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 800; letter-spacing:.2px; }
+    .badge { background: var(--brand); color: white; border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight:700; }
+    .pill { border: 1px solid #dfe7ee; border-radius: 999px; padding: 4px 10px; font-size: 12px; color: var(--muted); }
+
+    .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .controls button {
+      border: 1px solid #ccd6dd; background: var(--panel); color: var(--text);
+      padding: 8px 10px; border-radius: 10px; cursor: pointer; box-shadow: var(--shadow);
+    }
+    .controls button:focus-visible, .button:focus-visible, a.button:focus-visible, input:focus-visible {
+      outline: none; box-shadow: var(--focus);
+    }
+
+    nav.tabs {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px; margin-bottom: 18px;
+    }
+    nav.tabs button {
+      border: 1px solid #dfe7ee; background: var(--panel); border-radius: 12px; padding: 12px;
+      cursor:pointer; text-align:center; font-weight:700;
+    }
+    nav.tabs button[aria-current="page"] { border-color: var(--brand); box-shadow: var(--focus); }
+
+    .panel { background: var(--panel); border: 1px solid #e4e8ef; border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; margin-bottom: 16px; }
+    .panel h2, .panel h3 { margin-top: 0; }
+    .grid { display: grid; gap: 12px; }
+    .grid.cols-2 { grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); }
+
+    .kpis { display:flex; gap:10px; flex-wrap: wrap; }
+    .kpi { flex: 1 1 160px; min-width: 160px; background: #f1f6ff; border: 1px solid #e0ebff; padding: 10px 12px; border-radius: 10px; }
+    [data-contrast="high"] .kpi { background: #222; border-color: #333; }
+
+    .button, a.button {
+      display:inline-flex; align-items:center; gap:8px;
+      background: var(--brand); color:white; border:none; padding:10px 14px; border-radius:12px;
+      text-decoration:none; font-weight:700; cursor:pointer;
+    }
+    .button.secondary { background: #eceff3; color: var(--text); }
+
+    .scenario { border: 1px dashed #cfd7df; border-radius:12px; padding:12px; background:#fbfcfe; }
+    [data-contrast="high"] .scenario { background:#151515; border-color:#333; }
+
+    .flag { font-weight:700; }
+    .flag.ok { color: var(--ok); }
+    .flag.warn { color: var(--warn); }
+    .flag.bad { color: var(--bad); }
+
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
+
+    /* Name Gate */
+    .gate { min-height: 60vh; display:grid; place-items:center; }
+    .gate form {
+      background: var(--panel);
+      padding: 24px; border-radius: 16px; border:1px solid #e4e8ef; box-shadow: var(--shadow);
+      width: min(520px, 94vw);
+    }
+    .gate input[type="text"] {
+      width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid #ccd6dd; margin: 8px 0 14px;
+    }
+
+    code.url { background:#eef4ff; padding:3px 6px; border-radius:6px; border:1px solid #d9e6ff; }
+    [data-contrast="high"] code.url { background:#222; border-color:#333; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect, useRef } = React;
+
+    // ---------------- Utilities ----------------
+    const STORAGE_NAME_KEY = "trainer_name";
+    const save = (k,v) => localStorage.setItem(k, JSON.stringify(v));
+    const load = (k, d=null) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } };
+    const getStoredName = () => { try { return localStorage.getItem(STORAGE_NAME_KEY) ?? ""; } catch { return ""; } };
+    const setStoredName = (n) => { try { localStorage.setItem(STORAGE_NAME_KEY, n); } catch {} };
+
+    const speak = (text) => {
+      if (!('speechSynthesis' in window)) return alert('Read-aloud not supported in this browser.');
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 1.0; u.pitch = 1.0;
+      window.speechSynthesis.speak(u);
+    };
+    const stopSpeak = () => { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); };
+
+    function analyzeUrl(raw) {
+      const res = { input: raw, flags: [] };
+      try {
+        let url = raw.trim();
+        if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+        const u = new URL(url);
+        const hostname = u.hostname || '';
+        const path = u.pathname || '';
+        const full = u.toString();
+        if (u.protocol === 'http:') res.flags.push(['bad','Uses HTTP instead of HTTPS']);
+        if (/[^\u0000-\u007F]/.test(hostname)) res.flags.push(['warn','International characters in domain (lookalike risk)']);
+        if ((hostname.split('.').length-1) >= 3) res.flags.push(['warn','Many subdomains (could hide true domain)']);
+        const lowerHost = hostname.toLowerCase();
+        const brands = ['apple','paypal','amazon','microsoft','gmail','google','bankofamerica','wellsfargo','chase','facebook','instagram'];
+        brands.forEach(b=>{
+          if (lowerHost.includes(b) && !lowerHost.endsWith(b + '.com') && !lowerHost.includes('.' + b + '.com')) {
+            res.flags.push(['warn', `Mentions “${b}” in domain/subdomain (possible impersonation)`]);
+          }
+        });
+        if (full.length > 90) res.flags.push(['warn','Very long link']);
+        if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) res.flags.push(['bad','Raw IP address instead of a domain']);
+        if (/\.(exe|apk|scr|bat|cmd|msi|pkg|dmg|zip|rar)$/i.test(path)) res.flags.push(['bad','Direct download of executable/archive']);
+        if (raw.includes('@')) res.flags.push(['bad','Contains @ sign (can hide real destination)']);
+        if (/(bit\.ly|tinyurl\.com|t\.co|goo\.gl|ow\.ly|is\.gd|buff\.ly|rebrand\.ly)$/i.test(hostname)) res.flags.push(['warn','URL shortener (unknown destination)']);
+        if (res.flags.length === 0) res.flags.push(['ok','No obvious red flags — still verify when in doubt.']);
+      } catch(e) {
+        res.flags.push(['bad','Not a valid URL']);
+      }
+      return res;
+    }
+
+    // ---------------- Content ----------------
+    const seedData = {
+      email: [
+        {
+          id: "em1",
+          from: "Apple Support <no-reply@apple-secure-id.com>",
+          subject: "[Action Required] Your Apple ID will be locked",
+          story: "Linda receives this email late at night after a long day. The subject feels urgent and she remembers buying an app earlier. Should she click?",
+          body:
+`Dear Customer,
+
+We detected unusual activity on your Apple ID. Your account will be locked in 4 hours. To continue using your device please verify your information immediately.
+
+Verify now: https://apple.id-security-verify.com/login
+
+Thank you,
+Apple Security Team`,
+          redFlags: [
+            "Generic greeting (no name)",
+            "Urgency: “locked in 4 hours”",
+            "Link domain isn’t apple.com",
+            "From address mismatch: apple-secure-id.com",
+          ],
+          decision: "phish",
+          explanation: "Real Apple emails won’t threaten lockouts in hours and links go to apple.com/icloud.com. The domain here is a lookalike.",
+        },
+        {
+          id: "em2",
+          from: "Costco <orders@costco.com>",
+          subject: "Your receipt from yesterday’s visit",
+          story: "Linda shopped at Costco this week. An email arrives with her name in the subject and a receipt link.",
+          body:
+`Hi Linda,
+
+Thanks for visiting Costco San Marcos on Aug 6. Here’s your digital receipt.
+Order #COST-82931
+
+View receipt: https://www.costco.com/receipts/COST-82931
+
+— Costco`,
+          redFlags: ["None obvious: personal context matches, domain looks correct"],
+          decision: "legit",
+          explanation: "Sender and link are on costco.com; context matches. Safer path: go to costco.com yourself and check your account.",
+        },
+        {
+          id: "em3",
+          from: "USPS <tracking@usps-pkg.help>",
+          subject: "We couldn’t deliver your package—address issue",
+          story: "A delivery text didn’t arrive, but an email shows up about a missed package with a tiny fee to fix the address.",
+          body:
+`USPS: Delivery attempt failed. Pay $1.75 redelivery fee to update your address.
+https://usps-pkg.help/pay`,
+          redFlags: [
+            "Strange domain usps-pkg.help",
+            "Asks small payment for redelivery",
+            "Poor grammar/punctuation",
+          ],
+          decision: "phish",
+          explanation: "USPS doesn’t charge small fees via random links. Type usps.com yourself and check tracking.",
+        },
+      ],
+      sms: [
+        {
+          id: "sm1",
+          from: "+1 (844) 555-1299",
+          message: "Bank Alert: Zelle payment of $950 scheduled. Reply STOP to cancel or visit http://bofa-secure-check.com",
+          story: "A scary message appears to be from the bank about a Zelle transfer. Linda doesn’t recognize it.",
+          redFlags: ["Suspicious link domain", "Asks to reply via SMS to cancel"],
+          decision: "phish",
+          explanation: "Banks don’t cancel transfers over text. Use the bank app or call the number on your card.",
+        },
+        {
+          id: "sm2",
+          from: "CVS",
+          message: "Hi Linda — your prescription for Metformin is ready at CVS Escondido. Reply 1 to confirm pickup, 9 to cancel.",
+          story: "This one matches a real prescription refill and comes from a short code she recognizes.",
+          redFlags: ["No links; matches context"],
+          decision: "legit",
+          explanation: "Legit reminder (no links, no sensitive info). Still never share personal info via SMS.",
+        },
+      ],
+      social: [
+        {
+          id: "so1",
+          network: "Facebook",
+          from: "‘Grandson Noah’ (new account)",
+          message: "Grandma it’s Noah. My phone broke. Can you send $200 via gift cards? I’ll pay you back when I’m home.",
+          story: "A new profile appears with a familiar name and a copied photo.",
+          redFlags: ["New account with few friends", "Gift card request", "Refuses to call to verify"],
+          decision: "phish",
+          explanation: "Verify by calling your contact on a known number. Gift card requests = giant red flag.",
+        },
+        {
+          id: "so2",
+          network: "Instagram",
+          from: "@localgardenclub",
+          message: "Congrats Linda! You won our monthly plant giveaway. Pick a time to collect at the Escondido market. No payment needed.",
+          story: "Linda follows this club and entered a raffle in person last week.",
+          redFlags: ["Matches context, no payments requested"],
+          decision: "legit",
+          explanation: "Matches a real raffle; still avoid sharing sensitive info in DMs.",
+        },
+      ],
+      phone: [
+        {
+          id: "ph1",
+          caller: "‘Medicare Benefits’ (spoofed)",
+          script: "Hello Linda, we’re updating your Medicare file. Please confirm your full SSN and bank routing number so you don’t lose benefits.",
+          story: "Caller is insistent and references losing benefits.",
+          redFlags: ["Requests SSN/bank info", "Threat of losing benefits", "No verifiable callback"],
+          decision: "phish",
+          explanation: "Agencies don’t ask for SSNs/banking on cold calls. Hang up and call the official number.",
+        },
+        {
+          id: "ph2",
+          caller: "Doctor’s Office",
+          script: "Hi Linda, this is Dr. Chavez’s office confirming your appointment Tuesday at 10:30am. Call (760) 555-0102 to reschedule.",
+          story: "Matches a real appointment she booked.",
+          redFlags: ["Local callback; no sensitive info requested"],
+          decision: "legit",
+          explanation: "Legitimate confirmation with a local number; no data requested.",
+        },
+      ],
+    };
+
+    const lessons = [
+      {
+        id: 'email',
+        title: 'Email',
+        bullets: [
+          'Check the real sender address (not just the display name).',
+          'Hover links to preview the true destination URL.',
+          'Urgency/threats (“your account will be closed”) are pressure tactics.',
+          'Unexpected attachments = verify first.'
+        ],
+        story: (name) => `“Hi ${name}, quick favor?” Email from “Lauren G.” asking for $200 in gift cards for a ‘client surprise’. Address is lauren.gabele@outlook-biz.co and it must be in 15 minutes.`,
+      },
+      {
+        id: 'sms',
+        title: 'Text / SMS',
+        bullets: [
+          'Delivery texts are common bait — check orders in the real app.',
+          'Banks don’t ask you to tap a link to “confirm your PIN.”',
+          'If a text is random about your account, go to the official app/site instead.'
+        ],
+        story: (name) => `“USPS: Your parcel can’t be delivered. Fee: $1.10.” A link follows. You didn’t order a package, but it claims it’ll be returned today. You feel the urge to ‘fix it’ for ${name}.`,
+      },
+      {
+        id: 'social',
+        title: 'Social Media',
+        bullets: [
+          'Fake support DMs you first; real support won’t ask for your password.',
+          '“Copyright violation” messages often link to phishing pages.',
+          'Friend takeovers spread links. Verify with a quick call.'
+        ],
+        story: (name) => `${name} gets a Facebook message from a friend sharing “fun family photos” via a short link. The friend replies at odd hours.`,
+      },
+      {
+        id: 'phone',
+        title: 'Phone Calls',
+        bullets: [
+          'Hang up and call back using the official number from the website/card.',
+          'Government agencies won’t demand gift cards or crypto.',
+          'Spoofed caller ID is common — don’t trust the screen.'
+        ],
+        story: (name) => `A caller claims to be your bank fraud team and asks for your online username plus an SMS code. They pressure ${name} to act now or “account will be locked.”`,
+      }
+    ];
+
+    const practice = [
+      {
+        id:'p1', channel:'Email', subject:'Account Alert: Action Required',
+        preview:'Your email storage is full. Click to upgrade.',
+        details:`From: "Support Team" <support@outlook-upgrade.help>
+Links to: http://outlook-upgrade.help/secure
+Attachment: storage_upgrade.zip`,
+        answer:'phish',
+        why:'Generic sender, non-Microsoft domain, HTTP link, ZIP attachment — multiple red flags.'
+      },
+      {
+        id:'p2', channel:'Text', subject:'USPS Delivery Notice',
+        preview:'Your package is waiting. Pay $1.10 to release.',
+        details:`From: +1 (469) 555-0134
+Link: https://tinyurl.com/ship-verify`,
+        answer:'phish',
+        why:'Unsolicited fee + short link. Carriers don’t charge small random fees via text links.'
+      },
+      {
+        id:'p3', channel:'Email', subject:'Receipt from Grocery Market',
+        preview:'Thanks for your purchase.',
+        details:`From: receipts@store.example
+You shopped today at 2:41 PM.
+No links or attachments.`,
+        answer:'safe',
+        why:'Context matches your day, sender aligns with store, no links/attachments — likely legitimate.'
+      },
+      {
+        id:'p4', channel:'Social', subject:'Copyright Violation',
+        preview:'Your account will be deleted in 24h.',
+        details:`From: @Support-Review-Help
+Link: https://help-review-support.io/appeal`,
+        answer:'phish',
+        why:'Impersonation account + off-brand domain + threat/urgency.',
+      },
+    ];
+
+    const quizQuestions = (name) => ([
+      {
+        q: `A text says your bank locked your card and asks you to tap a link. What should ${name} do?`,
+        choices: [
+          'Tap the link and enter details to unlock.',
+          'Call the number in the text.',
+          'Open the official banking app or call the number on your card.',
+          'Reply STOP to unsubscribe.'
+        ],
+        correct: 2,
+        explain: 'Never use links or numbers in the message. Use the official app/site or the number on your card.'
+      },
+      {
+        q: `${name} receives an email from “Apple Support” <support@apple-care.help> asking to confirm Apple ID via a link.`,
+        choices: [
+          'Click the link if the logo looks real.',
+          'Hover the link, verify it’s apple.com, or navigate manually.',
+          'Reply to confirm you received it.',
+          'Download the attachment to check details.'
+        ],
+        correct: 1,
+        explain: 'Only trust apple.com (or the official app). Hover to preview or navigate directly.'
+      },
+      {
+        q: `On a phone call, the “bank” asks ${name} to read an SMS code to “verify identity.”`,
+        choices: [
+          'Share the code so they can help.',
+          'Refuse and hang up; call the bank using the official number.',
+          'Ask for their employee ID and continue.',
+          'Put them on hold for a supervisor.'
+        ],
+        correct: 1,
+        explain: 'Codes are for logging in — not for support. Hang up and call back via the official number.'
+      },
+    ]);
+
+    // ---------------- Components ----------------
+    function NameGate({ onSubmit }) {
+      const [name, setName] = useState(getStoredName());
+      const inputRef = useRef(null);
+      useEffect(()=>{ inputRef.current?.focus(); },[]);
+      return (
+        <div className="gate" role="dialog" aria-modal="true" aria-labelledby="gate-title">
+          <form onSubmit={(e)=>{ e.preventDefault(); const n = (name||'').trim(); if(!n) return; setStoredName(n); onSubmit(n); }}>
+            <h1 id="gate-title" style={{marginTop:0}}>Welcome to <span className="badge">StaySharp</span></h1>
+            <p>Let’s personalize your training. What’s your first name?</p>
+            <label htmlFor="name" className="sr-only">Your first name</label>
+            <input id="name" ref={inputRef} type="text" value={name} onChange={e=>setName(e.target.value)} placeholder="e.g., Linda" aria-required="true" />
+            <div style={{display:'flex', gap:8}}>
+              <button className="button" type="submit" aria-label="Start training">Start</button>
+              <button className="button secondary" type="button" onClick={()=>{ setName(''); setStoredName(''); inputRef.current?.focus(); }}>Clear</button>
+            </div>
+            <p className="tag" style={{marginTop:10}}>Your name is stored only in your browser to personalize examples.</p>
+          </form>
+        </div>
+      );
+    }
+
+    function TopBar({ name, setName, contrast, setContrast, bigtext, setBigtext }) {
+      return (
+        <header className="topbar">
+          <div className="brand" aria-label="StaySharp brand">
+            <span className="badge" aria-hidden="true">🛡️</span>
+            StaySharp
+            <span className="pill">Phishing & Online Safety</span>
+          </div>
+          <div className="controls" role="group" aria-label="Display settings">
+            <span className="pill">Hi, {name}!</span>
+            <button onClick={()=>{ const n = prompt('Update your name:', name)||name; setName(n); setStoredName(n); }} aria-label="Change name">Change name</button>
+            <button onClick={()=>{ setContrast(contrast==='high'?'normal':'high'); save('ss_contrast', contrast==='high'?'normal':'high'); }} aria-pressed={contrast==='high'}>{contrast==='high' ? 'Normal Contrast' : 'High Contrast'}</button>
+            <button onClick={()=>{ setBigtext(!bigtext); save('ss_bigtext', !bigtext); }} aria-pressed={!!bigtext}>{bigtext?'Normal Text':'Large Text'}</button>
+          </div>
+        </header>
+      );
+    }
+
+    function Tabs({ route, setRoute }) {
+      const tabs = [
+        ['home','Home'],
+        ['learn','Learn'],
+        ['practice','Practice'],
+        ['inbox','Inbox (Email/SMS/Social/Phone)'],
+        ['quiz','Quiz'],
+        ['tools','Tools'],
+        ['help','Help']
+      ];
+      return (
+        <nav className="tabs" role="tablist" aria-label="Main sections">
+          {tabs.map(([id,label])=>(
+            <button key={id}
+              role="tab"
+              aria-selected={route===id}
+              aria-current={route===id?'page':undefined}
+              onClick={()=>setRoute(id)}>
+              {label}
+            </button>
+          ))}
+        </nav>
+      );
+    }
+
+    function Home({ name, progress }) {
+      return (
+        <>
+          <section className="panel">
+            <h2>Welcome, {name} 👋</h2>
+            <p>In about 10–15 minutes, you’ll learn how to spot phishing in email, texts, social media, and phone calls — and practice with realistic stories.</p>
+            <div className="kpis">
+              <div className="kpi"><strong>Lessons viewed:</strong><div>{progress.lessonsSeen} / {lessons.length}</div></div>
+              <div className="kpi"><strong>Practice accuracy:</strong><div>{progress.practiceAcc}%</div></div>
+              <div className="kpi"><strong>Last quiz score:</strong><div>{progress.quizScore ?? '—'}/3</div></div>
+            </div>
+          </section>
+          <section className="panel">
+            <h3>Quick tips</h3>
+            <ul>
+              <li>Pause and breathe — urgency is the attacker’s friend.</li>
+              <li>Verify on a second channel (official app/website or known number).</li>
+              <li>Never share login codes with anyone — ever.</li>
+            </ul>
+          </section>
+        </>
+      );
+    }
+
+    function Learn({ name, markSeen }) {
+      return (
+        <div className="grid cols-2">
+          {lessons.map((l)=>(
+            <article className="panel" key={l.id} aria-labelledby={`lesson-${l.id}`}>
+              <h3 id={`lesson-${l.id}`}>{l.title}</h3>
+              <p className="pill">Common red flags</p>
+              <ul>
+                {l.bullets.map((b,i)=>(<li key={i}>{b}</li>))}
+              </ul>
+              <div className="scenario" role="region" aria-label={`${l.title} story`}>
+                <p><strong>Story:</strong> {l.story(name)}</p>
+              </div>
+              <div style={{display:'flex', gap:8, marginTop:8}}>
+                <button className="button" onClick={()=>speak(`${l.title}. ${l.bullets.join('. ')}. Story: ${l.story(name)}`)} aria-label={`Read ${l.title} aloud`}>🔊 Read aloud</button>
+                <button className="button secondary" onClick={()=>{ stopSpeak(); markSeen(l.id); }} aria-label="Mark as read">Mark as read</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      );
+    }
+
+    function Practice({ onResult }) {
+      const [index, setIndex] = useState(0);
+      const [selected, setSelected] = useState(null);
+      const item = practice[index];
+
+      const submit = (choice) => {
+        if (selected !== null) return;
+        const correct = (choice === item.answer);
+        setSelected(choice);
+        onResult(correct);
+      };
+      const next = () => { setSelected(null); setIndex((i)=> (i+1) % practice.length); };
+
+      return (
+        <section className="panel">
+          <h2>Practice Inbox</h2>
+          <p className="pill">Decide if this is phishing or safe. Then see why.</p>
+          <div className="scenario">
+            <div style={{display:'flex', gap:8, alignItems:'center', justifyContent:'space-between', flexWrap:'wrap'}}>
+              <div><span className="pill">{item.channel}</span> <strong>{item.subject}</strong></div>
+              <div className="pill">Item {index+1} of {practice.length}</div>
+            </div>
+            <p><em>Preview:</em> {item.preview}</p>
+            <pre aria-label="Message details" style="white-space:pre-wrap">{item.details}</pre>
+          </div>
+          <div style={{display:'flex', gap:8, marginTop:10, flexWrap:'wrap'}}>
+            <button className="button" onClick={()=>submit('phish')} aria-pressed={selected==='phish'}>🚩 Phishing</button>
+            <button className="button" onClick={()=>submit('safe')} aria-pressed={selected==='safe'}>✅ Safe</button>
+            <button className="button secondary" onClick={()=>speak(`Channel ${item.channel}. Subject ${item.subject}. ${item.preview}. Details: ${item.details}`)}>🔊 Read aloud</button>
+            <button className="button secondary" onClick={stopSpeak}>⏹️ Stop</button>
+          </div>
+          {selected && (
+            <div className="panel" style={{marginTop:12}}>
+              <p className={`flag ${selected===item.answer?'ok':'bad'}`}>{selected===item.answer ? 'Correct!' : 'Not quite.'}</p>
+              <p><strong>Why:</strong> {item.why}</p>
+              <button className="button" onClick={next} aria-label="Next item">Next</button>
+            </div>
+          )}
+        </section>
+      );
+    }
+
+    function ChannelView({ items, channel, onAnswer, readingEnabled, name }) {
+      const [selected, setSelected] = useState(items[0]?.id ?? null);
+      const current = items.find((x) => x.id === selected) || items[0];
+
+      function renderReadable(item, channel) {
+        const story = item.story ? item.story.replace(/\bLinda\b/g, name) + " " : "";
+        if (channel === "email") return `Email from ${item.from}. Subject: ${item.subject}. ${story}${item.body}`;
+        if (channel === "sms")   return `Text message from ${item.from}. ${story}${item.message}`;
+        if (channel === "social")return `Social message on ${item.network} from ${item.from}. ${story}${item.message}`;
+        return `Phone call from ${item.caller}. ${story}${item.script}`;
+      }
+
+      return (
+        <div className="grid cols-2">
+          <section className="panel">
+            <div className="pill" style="display:inline-block">Messages</div>
+            <ul style="list-style:none; padding-left:0; margin-top:8px">
+              {items.map((m) => (
+                <li key={m.id} style="margin-bottom:8px">
+                  <button
+                    style="width:100%; text-align:left"
+                    className="panel"
+                    onClick={()=>setSelected(m.id)}
+                    aria-label={`Open item ${m.subject || m.message || m.caller}`}
+                  >
+                    <div style="margin-bottom:4px; font-weight:700">
+                      {channel === "email" && (m.subject)}
+                      {channel === "sms" && (m.message)}
+                      {channel === "social" && (`${m.network}: ${m.from}`)}
+                      {channel === "phone" && (`Caller: ${m.caller}`)}
+                    </div>
+                    <div className="pill" style="display:inline-block">
+                      {channel === "email" && m.from}
+                      {channel === "sms" && m.from}
+                      {channel === "social" && m.story}
+                      {channel === "phone" && m.story}
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="panel">
+            {current ? (
+              <div className="grid">
+                <div style="display:flex; align-items:center; gap:8px; justify-content:space-between; flex-wrap:wrap">
+                  <h3 style="margin:0">Scenario</h3>
+                  <div style="display:flex; gap:8px">
+                    <button
+                      className="button secondary"
+                      onClick={()=> readingEnabled && speak(renderReadable(current, channel))}
+                      disabled={!readingEnabled}
+                    >
+                      🔊 Read aloud
+                    </button>
+                    <button className="button secondary" onClick={stopSpeak}>⏹️ Stop</button>
+                  </div>
+                </div>
+
+                <p className="pill">Story-based</p>
+                <p>{(current.story || '').replace(/\bLinda\b/g, name)}</p>
+
+                <div className="scenario">
+                  {channel === "email" && (
+                    <>
+                      <div className="pill" style="display:inline-block">From: {current.from}</div>
+                      <div className="pill" style="display:inline-block; margin-left:8px">Subject: {current.subject}</div>
+                      <hr style="margin:8px 0" />
+                      <pre style="white-space:pre-wrap">{current.body}</pre>
+                    </>
+                  )}
+                  {channel === "sms" && <div>{current.message}</div>}
+                  {channel === "social" && (
+                    <>
+                      <div className="pill" style="display:inline-block">Network: {current.network}</div>
+                      <div className="pill" style="display:inline-block; margin-left:8px">From: {current.from}</div>
+                      <hr style="margin:8px 0" />
+                      <div>{current.message}</div>
+                    </>
+                  )}
+                  {channel === "phone" && <div style="font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace">{current.script}</div>}
+                </div>
+
+                <div style="display:flex; gap:8px; flex-wrap:wrap">
+                  <span className="pill">What should {name} do?</span>
+                  <button className="button" onClick={()=>onAnswer(current, "legit")}>Trust / Proceed</button>
+                  <button className="button secondary" onClick={()=>onAnswer(current, "phish")}>Report / Don’t engage</button>
+                </div>
+
+                <div>
+                  <div className="pill" style="display:inline-block; margin-bottom:6px">Clues</div>
+                  <ul>
+                    {current.redFlags.map((f, i) => (<li key={i}>{f}</li>))}
+                  </ul>
+                </div>
+              </div>
+            ) : (<div className="pill">No items.</div>)}
+          </section>
+        </div>
+      );
+    }
+
+    function Quiz({ name, onFinish }) {
+      const qs = useMemo(()=>quizQuestions(name), [name]);
+      const [i, setI] = useState(0);
+      const [ans, setAns] = useState(null);
+      const [score, setScore] = useState(0);
+      const q = qs[i];
+
+      const next = () => {
+        if (ans === null) return;
+        if (ans === q.correct) setScore(s => s+1);
+        if (i < qs.length-1) { setI(i+1); setAns(null); }
+        else { onFinish(score + (ans===q.correct?1:0), qs.length); }
+      };
+
+      return (
+        <section className="panel">
+          <h2>Quiz</h2>
+          <p className="pill">Question {i+1} of {qs.length}</p>
+          <p style={{fontWeight:700}}>{q.q}</p>
+          <div className="grid">
+            {q.choices.map((c,idx)=>(
+              <label key={idx} className="panel" style={{display:'flex', gap:10, alignItems:'flex-start'}}>
+                <input type="radio" name={`q${i}`} checked={ans===idx} onChange={()=>setAns(idx)} />
+                <span>{c}</span>
+              </label>
+            ))}
+          </div>
+          {ans!==null && (
+            <p className={`flag ${ans===q.correct ? 'ok':'bad'}`}>
+              {ans===q.correct ? 'Correct' : 'Incorrect'} — {q.explain}
+            </p>
+          )}
+          <div style={{display:'flex', gap:8, marginTop:8}}>
+            <button className="button" onClick={()=>speak(q.q + ' ' + q.choices.map((x,ix)=>`Option ${ix+1}. ${x}.`).join(' '))}>🔊 Read aloud</button>
+            <button className="button" onClick={next}>{i<qs.length-1?'Next':'Finish'}</button>
+          </div>
+        </section>
+      );
+    }
+
+    function Tools() {
+      const [url, setUrl] = useState('');
+      const [report, setReport] = useState(null);
+      const check = () => setReport(analyzeUrl(url));
+      return (
+        <div className="grid cols-2">
+          <section className="panel">
+            <h3>URL Checker</h3>
+            <p>Paste a link to see common red flags. (Heuristic helper, not a guarantee.)</p>
+            <label htmlFor="url" className="sr-only">URL</label>
+            <input id="url" type="text" placeholder="e.g. https://apple.com" value={url} onChange={e=>setUrl(e.target.value)} style="width:100%; padding:10px; border-radius:10px; border:1px solid #ccd6dd;" />
+            <div style="display:flex; gap:8; margin-top:8px">
+              <button className="button" onClick={check}>Check</button>
+              <button className="button secondary" onClick={()=>{ setUrl(''); setReport(null); }}>Clear</button>
+            </div>
+            {report && (
+              <div className="panel" style="margin-top:10px">
+                <p>Input: <code className="url">{report.input}</code></p>
+                <ul>
+                  {report.flags.map(([level,msg],i)=>(<li key={i} className={`flag ${level}`}>{msg}</li>))}
+                </ul>
+              </div>
+            )}
+          </section>
+
+          <section className="panel">
+            <h3>Phishing Red-Flag Checklist</h3>
+            <ul>
+              <li>Unexpected contact + urgency or threats</li>
+              <li>Sender address/domain doesn’t match the brand</li>
+              <li>Link preview looks off (misspelling, extra words, shorteners)</li>
+              <li>Requests for passwords, 2FA codes, or card/PIN info</li>
+              <li>Attachments you weren’t expecting</li>
+              <li>Strange grammar, tone, or formatting</li>
+            </ul>
+          </section>
+        </div>
+      );
+    }
+
+    function Help({ name }) {
+      return (
+        <section className="panel">
+          <h2>If you think you’ve been phished</h2>
+          <ol>
+            <li>Close the suspicious tab/app.</li>
+            <li>Change your password (and enable 2-step verification) on the real site.</li>
+            <li>If you shared codes or card info, call the company using the official number immediately.</li>
+            <li>Run a device security scan.</li>
+            <li>Report phishing (e.g., forward emails to <code class="url">reportphishing@apwg.org</code>).</li>
+          </ol>
+          <p className="pill">Stay skeptical, {name}. Verify on a second channel before acting.</p>
+        </section>
+      );
+    }
+
+    // ---------------- App Root ----------------
+    function AppRoot() {
+      const [name, setName] = useState(getStoredName());
+      const [route, setRoute] = useState('home');
+      const [contrast, setContrast] = useState(load('ss_contrast','normal'));
+      const [bigtext, setBigtext] = useState(load('ss_bigtext', false));
+      const [seenLessons, setSeenLessons] = useState(load('ss_seen', {}));
+      const [practiceStats, setPracticeStats] = useState(load('ss_practice', { total:0, correct:0 }));
+      const [quizScore, setQuizScore] = useState(load('ss_quiz', null));
+      const readingEnabled = typeof window !== "undefined" && "speechSynthesis" in window;
+
+      useEffect(()=>{ document.documentElement.setAttribute('data-contrast', contrast==='high'?'high':'normal'); },[contrast]);
+      useEffect(()=>{ document.documentElement.setAttribute('data-bigtext', bigtext ? 'true' : 'false'); },[bigtext]);
+
+      const markSeen = (id) => setSeenLessons(s => { const next = {...s, [id]: true}; save('ss_seen', next); return next; });
+      const onPracticeResult = (correct) => setPracticeStats(st => { const next = { total: st.total + 1, correct: st.correct + (correct?1:0) }; save('ss_practice', next); return next; });
+      const onQuizFinish = (score, total) => { setQuizScore(`${score}`); save('ss_quiz', `${score}`); alert(`Quiz complete! You scored ${score} / ${total}.`); setRoute('home'); };
+
+      const progress = {
+        lessonsSeen: Object.keys(seenLessons).length,
+        practiceAcc: practiceStats.total ? Math.round(100*practiceStats.correct/practiceStats.total) : 0,
+        quizScore: quizScore ? Number(quizScore) : null
+      };
+
+      if (!name) return <NameGate onSubmit={(n)=>setName(n)} />;
+
+      function handleAnswer(item, pick) {
+        const correct = pick === item.decision;
+        alert(`${correct ? "✅ Correct" : "❌ Not quite"}\n\nWhy: ${item.explanation}`);
+      }
+
+      return (
+        <div className="app">
+          <TopBar name={name} setName={setName} contrast={contrast} setContrast={setContrast} bigtext={bigtext} setBigtext={setBigtext} />
+          <Tabs route={route} setRoute={setRoute} />
+
+          {route==='home' && <Home name={name} progress={progress} />}
+          {route==='learn' && <Learn name={name} markSeen={markSeen} />}
+          {route==='practice' && <Practice onResult={onPracticeResult} />}
+          {route==='inbox' && (
+            <>
+              <ChannelView items={seedData.email}  channel="email"  onAnswer={handleAnswer} readingEnabled={readingEnabled} name={name} />
+              <ChannelView items={seedData.sms}    channel="sms"    onAnswer={handleAnswer} readingEnabled={readingEnabled} name={name} />
+              <ChannelView items={seedData.social} channel="social" onAnswer={handleAnswer} readingEnabled={readingEnabled} name={name} />
+              <ChannelView items={seedData.phone}  channel="phone"  onAnswer={handleAnswer} readingEnabled={readingEnabled} name={name} />
+            </>
+          )}
+          {route==='quiz' && <Quiz name={name} onFinish={onQuizFinish} />}
+          {route==='tools' && <Tools />}
+          {route==='help' && <Help name={name} />}
+
+          <footer className="pill" style="margin-top:18px; display:inline-block">
+            Built for learning — your data stays in your browser. • Stay curious, stay cautious.
+          </footer>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<AppRoot />);
+  </script>
+</body>
+</html>
